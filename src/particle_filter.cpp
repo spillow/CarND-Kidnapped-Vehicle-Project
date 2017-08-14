@@ -44,6 +44,8 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
         p.y = y + dist_y(gen);
         p.theta = theta + dist_theta(gen);
         p.weight = 1.;
+
+        particles.push_back(p);
     }
 
     is_initialized = true;
@@ -66,15 +68,15 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 
     default_random_engine gen;
 
+    normal_distribution<double> dist_x(0, std_x);
+    normal_distribution<double> dist_y(0, std_y);
+    normal_distribution<double> dist_theta(0, std_theta);
+
     for (auto &p : particles)
     {
         p.x += (v / yr) * (sin(p.theta + yr * dt) - sin(p.theta));
         p.y += (v / yr) * (cos(p.theta) - cos(p.theta + yr * dt));
         p.theta += yr * dt;
-
-        normal_distribution<double> dist_x(p.x, std_x);
-        normal_distribution<double> dist_y(p.y, std_y);
-        normal_distribution<double> dist_theta(p.theta, std_theta);
 
         p.x += dist_x(gen);
         p.y += dist_y(gen);
@@ -144,16 +146,18 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
                 predicted.push_back({ lm.id_i, lm.x_f, lm.y_f });
         }
 
-        for (auto &o : observations)
+        std::vector<LandmarkObs> mapObs = observations;
+
+        for (auto &o : mapObs)
         {
             o.x = p.x + cos(p.theta) * o.x + sin(p.theta) * o.y;
             o.y = p.y - sin(p.theta) * o.x + cos(p.theta) * o.y;
         }
 
-        dataAssociation(predicted, observations);
+        dataAssociation(predicted, mapObs);
 
         double w = 1.;
-        for (auto &o : observations)
+        for (auto &o : mapObs)
         {
             double x = o.x;
             double y = o.y;
