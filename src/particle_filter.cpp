@@ -80,6 +80,8 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
             p.x += (v / yr) * (sin(p.theta + yr * dt) - sin(p.theta));
             p.y += (v / yr) * (cos(p.theta) - cos(p.theta + yr * dt));
         }
+        // if the yaw rate is small, we're pretty much driving in
+        // a straight line.  Avoid the divide by zero above.
         else
         {
             p.x += v*dt*cos(p.theta);
@@ -105,6 +107,7 @@ void ParticleFilter::dataAssociation(
     {
         double best_dist = FLT_MAX;
         unsigned idx = 0;
+        // find the nearest neighbor landmark to the current observation.
         for (auto &p : predicted)
         {
             double dx = p.x - o.x;
@@ -153,6 +156,8 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
             double dy = lm.y_f - p.y;
             double dist = sqrt(dx*dx + dy*dy);
 
+            // Only look at landmarks that could
+            // have possibly been sensed by the particle.
             if (dist <= sensor_range)
                 predicted.push_back({ lm.id_i, lm.x_f, lm.y_f });
         }
@@ -161,6 +166,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 
         std::vector<LandmarkObs> mapObs = observations;
 
+        // Translate observation to map coordinates.
         for (auto &o : mapObs)
         {
             double xm = p.x + cos(p.theta) * o.x - sin(p.theta) * o.y;
@@ -172,6 +178,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 
         dataAssociation(predicted, mapObs);
 
+        // Debugging visualization
         {
             std::vector<int> assocs;
             std::vector<double> sense_x;
@@ -185,6 +192,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
             p = SetAssociations(p, assocs, sense_x, sense_y);
         }
 
+        // Calculate new weight by the product of gaussians.
         double w = 1.;
         for (auto &o : mapObs)
         {
