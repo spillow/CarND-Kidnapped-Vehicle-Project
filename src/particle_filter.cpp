@@ -41,9 +41,9 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
     {
         Particle p;
         p.id = i;
-        p.x = x + dist_x(gen);
-        p.y = y + dist_y(gen);
-        p.theta = theta + dist_theta(gen);
+        p.x = dist_x(gen);
+        p.y = dist_y(gen);
+        p.theta = dist_theta(gen);
         p.weight = 1.;
 
         particles.push_back(p);
@@ -109,11 +109,11 @@ void ParticleFilter::dataAssociation(
         {
             double dx = p.x - o.x;
             double dy = p.y - o.y;
-            double dist2 = dx*dx + dy*dy;
+            double dist = sqrt(dx*dx + dy*dy);
 
-            if (dist2 < best_dist)
+            if (dist < best_dist)
             {
-                best_dist = dist2;
+                best_dist = dist;
                 idx = p.id;
             }
         }
@@ -163,8 +163,6 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 
         for (auto &o : mapObs)
         {
-            //o.x = p.x + cos(p.theta) * o.x + sin(p.theta) * o.y;
-            //o.y = p.y - sin(p.theta) * o.x + cos(p.theta) * o.y;
             double xm = p.x + cos(p.theta) * o.x - sin(p.theta) * o.y;
             double ym = p.y + sin(p.theta) * o.x + cos(p.theta) * o.y;
 
@@ -174,19 +172,28 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 
         dataAssociation(predicted, mapObs);
 
+        {
+            std::vector<int> assocs;
+            std::vector<double> sense_x;
+            std::vector<double> sense_y;
+            for (auto &o : mapObs)
+            {
+                assocs.push_back(o.id);
+                sense_x.push_back(o.x);
+                sense_y.push_back(o.y);
+            }
+            p = SetAssociations(p, assocs, sense_x, sense_y);
+        }
+
         double w = 1.;
         for (auto &o : mapObs)
         {
-            unsigned theindex = o.id - 1;
-            if (theindex < 0 || theindex >= map_landmarks.landmark_list.size())
-            {
-                std::cout << "id off is: " << o.id << std::endl;
-            }
-            assert(theindex >= 0 && theindex < map_landmarks.landmark_list.size());
+            unsigned lm_idx = o.id - 1;
+            assert(lm_idx >= 0 && lm_idx < map_landmarks.landmark_list.size());
             double x = o.x;
             double y = o.y;
-            double mu_x = map_landmarks.landmark_list[o.id - 1].x_f;
-            double mu_y = map_landmarks.landmark_list[o.id - 1].y_f;
+            double mu_x = map_landmarks.landmark_list[lm_idx].x_f;
+            double mu_y = map_landmarks.landmark_list[lm_idx].y_f;
             double std_x = std_landmark[0];
             double std_y = std_landmark[1];
             w *= calcGauss(x, y, mu_x, mu_y, std_x, std_y);
