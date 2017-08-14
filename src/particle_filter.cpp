@@ -16,6 +16,7 @@
 #include <iterator>
 
 #include <float.h>
+#include <assert.h>
 
 #include "particle_filter.h"
 
@@ -74,8 +75,16 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 
     for (auto &p : particles)
     {
-        p.x += (v / yr) * (sin(p.theta + yr * dt) - sin(p.theta));
-        p.y += (v / yr) * (cos(p.theta) - cos(p.theta + yr * dt));
+        if (fabs(yr) > 0.001)
+        {
+            p.x += (v / yr) * (sin(p.theta + yr * dt) - sin(p.theta));
+            p.y += (v / yr) * (cos(p.theta) - cos(p.theta + yr * dt));
+        }
+        else
+        {
+            p.x += v*dt*cos(p.theta);
+            p.y += v*dt*sin(p.theta);
+        }
         p.theta += yr * dt;
 
         p.x += dist_x(gen);
@@ -133,6 +142,8 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 	//   3.33
 	//   http://planning.cs.uiuc.edu/node99.html
 
+    assert(!observations.empty());
+
     for (auto &p : particles)
     {
         std::vector<LandmarkObs> predicted;
@@ -146,12 +157,19 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
                 predicted.push_back({ lm.id_i, lm.x_f, lm.y_f });
         }
 
+        assert(!predicted.empty());
+
         std::vector<LandmarkObs> mapObs = observations;
 
         for (auto &o : mapObs)
         {
-            o.x = p.x + cos(p.theta) * o.x + sin(p.theta) * o.y;
-            o.y = p.y - sin(p.theta) * o.x + cos(p.theta) * o.y;
+            //o.x = p.x + cos(p.theta) * o.x + sin(p.theta) * o.y;
+            //o.y = p.y - sin(p.theta) * o.x + cos(p.theta) * o.y;
+            double xm = p.x + cos(p.theta) * o.x - sin(p.theta) * o.y;
+            double ym = p.y + sin(p.theta) * o.x + cos(p.theta) * o.y;
+
+            o.x = xm;
+            o.y = ym;
         }
 
         dataAssociation(predicted, mapObs);
@@ -159,6 +177,12 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
         double w = 1.;
         for (auto &o : mapObs)
         {
+            unsigned theindex = o.id - 1;
+            if (theindex < 0 || theindex >= map_landmarks.landmark_list.size())
+            {
+                std::cout << "id off is: " << o.id << std::endl;
+            }
+            assert(theindex >= 0 && theindex < map_landmarks.landmark_list.size());
             double x = o.x;
             double y = o.y;
             double mu_x = map_landmarks.landmark_list[o.id - 1].x_f;
